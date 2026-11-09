@@ -47,4 +47,11 @@ class KeyPointGeneratorTest {
         val delay = ReminderScheduler.delayUntilNext(9, 0, now)
         assertEquals(23 * 60 * 60 * 1000L, delay)
     }
+
+    @Test
+    fun testShortText_ReturnsEmptyList() {
+        val shortText = "Hello world."
+        val points = KeyPointGenerator.generate(shortText, "testing")
+        assertTrue(points.isEmpty())
+    }
 }
