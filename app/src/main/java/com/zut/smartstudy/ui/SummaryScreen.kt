@@ -12,7 +12,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -22,19 +21,33 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.zut.smartstudy.ui.components.ShineButton
+import com.zut.smartstudy.ui.components.StudyBackground
+import com.zut.smartstudy.ui.components.studyCardColors
+import com.zut.smartstudy.ui.theme.SoftWhite
 
 @Composable
 fun SummaryScreen(vm: StudyViewModel, onBack: () -> Unit) {
     val summary = vm.current
 
+    StudyBackground {
     Scaffold(
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
                 title = { Text(summary?.topic ?: "Key points") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Transparent,
+                    scrolledContainerColor = Color.Transparent,
+                    titleContentColor = SoftWhite,
+                    navigationIconContentColor = SoftWhite
+                ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -49,9 +62,12 @@ fun SummaryScreen(vm: StudyViewModel, onBack: () -> Unit) {
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Button(onClick = { vm.saveCurrent() }, enabled = summary.savedId == null) {
-                        Text(if (summary.savedId == null) "Save notes" else "Saved ✓")
-                    }
+                    ShineButton(
+                        text = if (summary.savedId == null) "Save notes" else "Saved ✓",
+                        onClick = { vm.saveCurrent() },
+                        enabled = summary.savedId == null,
+                        shine = false
+                    )
                     FilterChip(
                         selected = summary.revised,
                         onClick = { vm.toggleRevised() },
@@ -73,14 +89,15 @@ fun SummaryScreen(vm: StudyViewModel, onBack: () -> Unit) {
                     Text("From: ${summary.documentName}", style = MaterialTheme.typography.bodySmall)
                 }
                 itemsIndexed(summary.points) { i, point ->
-                    Card(Modifier.fillMaxWidth()) {
+                    Card(Modifier.fillMaxWidth(), colors = studyCardColors()) {
                         Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Text("${i + 1}.", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-                            Column { Text(point) }
+                            Column { Text(point, style = MaterialTheme.typography.bodyLarge) }
                         }
                     }
                 }
             }
         }
+    }
     }
 }

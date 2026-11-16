@@ -8,7 +8,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -21,7 +21,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -36,6 +35,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -45,11 +45,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.zut.smartstudy.data.Reminder
 import com.zut.smartstudy.data.SavedNote
+import com.zut.smartstudy.ui.components.ShineButton
+import com.zut.smartstudy.ui.components.StudyBackground
+import com.zut.smartstudy.ui.components.softPress
+import com.zut.smartstudy.ui.components.studyCardColors
+import com.zut.smartstudy.ui.theme.ButtonBlue
+import com.zut.smartstudy.ui.theme.SoftWhite
+import com.zut.smartstudy.ui.theme.SurfaceNavy
 
 @Composable
 fun DashboardScreen(
@@ -71,11 +79,28 @@ fun DashboardScreen(
         ) permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
+    val fabSource = remember { MutableInteractionSource() }
+
+    StudyBackground(showPhotos = true) {
     Scaffold(
-        topBar = { TopAppBar(title = { Text("SmartStudy AI") }) },
+        containerColor = Color.Transparent,
+        topBar = {
+            TopAppBar(
+                title = { Text("SmartStudy AI") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Transparent,
+                    scrolledContainerColor = Color.Transparent,
+                    titleContentColor = SoftWhite
+                )
+            )
+        },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { showDialog = true },
+                modifier = Modifier.softPress(fabSource),
+                containerColor = ButtonBlue,
+                contentColor = SoftWhite,
+                interactionSource = fabSource,
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
                 text = { Text("New reminder") }
             )
@@ -87,20 +112,29 @@ fun DashboardScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             item {
-                Card(Modifier.fillMaxWidth()) {
+                Card(Modifier.fillMaxWidth(), colors = studyCardColors()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Summarise your notes", style = MaterialTheme.typography.titleMedium)
                         Text("Choose how you want to create your revision notes.")
-                        Button(
+                        ShineButton(
+                            text = "Generate key points",
                             onClick = { onPickDocument(GenerationMode.OFFLINE) },
-                            modifier = Modifier.fillMaxWidth()
-                        ) { Text("Generate key points") }
-                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            shine = false
+                        )
+                        ShineButton(
+                            text = "Generate key points using AI",
                             onClick = { onPickDocument(GenerationMode.AI) },
                             modifier = Modifier.fillMaxWidth()
-                        ) { Text("Generate key points using AI") }
+                        )
+                        ShineButton(
+                            text = "Generate key points using AI (2)",
+                            onClick = { onPickDocument(GenerationMode.GROQ) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shineDelayMs = 2500
+                        )
                         Text(
-                            "Offline generation works without internet. AI generation uses Gemini to refine the extracted points.",
+                            "Offline generation works without internet. AI uses Gemini and AI (2) uses Groq to refine the extracted points.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -134,6 +168,7 @@ fun DashboardScreen(
             item { androidx.compose.foundation.layout.Spacer(Modifier.padding(40.dp)) }
         }
     }
+    }
 
     if (showDialog) {
         AddReminderDialog(
@@ -148,7 +183,7 @@ fun DashboardScreen(
 
 @Composable
 private fun ReminderRow(reminder: Reminder, onToggle: (Boolean) -> Unit, onDelete: () -> Unit) {
-    Card(Modifier.fillMaxWidth()) {
+    Card(Modifier.fillMaxWidth(), colors = studyCardColors()) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("%02d:%02d".format(reminder.hour, reminder.minute), style = MaterialTheme.typography.titleLarge)
@@ -166,7 +201,13 @@ private fun ReminderRow(reminder: Reminder, onToggle: (Boolean) -> Unit, onDelet
 
 @Composable
 private fun NoteRow(note: SavedNote, onClick: () -> Unit, onDelete: () -> Unit) {
-    Card(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+    val source = remember { MutableInteractionSource() }
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().softPress(source),
+        colors = studyCardColors(),
+        interactionSource = source
+    ) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(note.topic, style = MaterialTheme.typography.titleMedium)
@@ -193,6 +234,9 @@ private fun AddReminderDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = SurfaceNavy,
+        titleContentColor = SoftWhite,
+        textContentColor = SoftWhite,
         title = { Text("New study reminder") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

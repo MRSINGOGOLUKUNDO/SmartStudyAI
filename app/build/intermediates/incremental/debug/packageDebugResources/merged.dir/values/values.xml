@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <color name="ic_launcher_background">#111827</color>
     <string name="app_name">SmartStudy AI</string>
-    <style name="Theme.SmartStudy" parent="android:Theme.Material.Light.NoActionBar"/>
+    <style name="Theme.SmartStudy" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/ic_launcher_background</item>
+        <item name="android:statusBarColor">@color/ic_launcher_background</item>
+        <item name="android:navigationBarColor">@color/ic_launcher_background</item>
+    </style>
 </resources>

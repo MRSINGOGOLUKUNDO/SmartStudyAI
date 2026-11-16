@@ -12,6 +12,7 @@ import com.zut.smartstudy.data.Reminder
 import com.zut.smartstudy.data.SavedNote
 import com.zut.smartstudy.data.StudyRepository
 import com.zut.smartstudy.domain.AiKeyPointGenerator
+import com.zut.smartstudy.domain.GroqKeyPointGenerator
 import com.zut.smartstudy.domain.KeyPointGenerator
 import com.zut.smartstudy.domain.TextExtractor
 import com.zut.smartstudy.notifications.ReminderScheduler
@@ -33,7 +34,14 @@ data class SummaryUi(
 
 enum class GenerationMode {
     OFFLINE,
-    AI
+    AI,   // Gemini
+    GROQ  // "AI (2)"
+}
+
+/** Which online service refines the offline draft points. */
+enum class AiProvider {
+    GEMINI,
+    GROQ
 }
 
 class StudyViewModel(app: Application) : AndroidViewModel(app) {
@@ -54,7 +62,7 @@ class StudyViewModel(app: Application) : AndroidViewModel(app) {
             emptyList()
         )
 
-    // Picker state. The API key is held in memory only.
+    // Picker state. API keys are held in memory only.
     var pickedUri by mutableStateOf<Uri?>(null)
         private set
 
@@ -62,7 +70,8 @@ class StudyViewModel(app: Application) : AndroidViewModel(app) {
         private set
 
     var topic by mutableStateOf("")
-    var apiKey by mutableStateOf("")
+    var apiKey by mutableStateOf("AQ.Ab8RN6KknqbGK4ZJecSg7VsH-pGGQEOBelEtPRibD2IEsEdT0A")      // Gemini key
+    var groqApiKey by mutableStateOf("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")  // Groq key
 
     var generationMode by mutableStateOf(GenerationMode.OFFLINE)
         private set
@@ -90,22 +99,41 @@ class StudyViewModel(app: Application) : AndroidViewModel(app) {
         error = null
     }
 
-    /** Uses the original on-device generator; this path works without internet. */
-    fun generate(onDone: () -> Unit) {
-        generateInternal(useAi = false, onDone = onDone)
+    /** Runs whichever generator matches the mode chosen on the dashboard. */
+    fun generateForSelectedMode(onDone: () -> Unit) {
+        when (generationMode) {
+            GenerationMode.OFFLINE -> generate(onDone)
+            GenerationMode.AI -> generateWithAi(onDone)
+            GenerationMode.GROQ -> generateWithGroq(onDone)
+        }
     }
 
-    /** Runs the offline generator first, then asks Gemini to refine its draft points. */
+    /** Uses the original on-device generator; this path works without internet. */
+    fun generate(onDone: () -> Unit) {
+        generateInternal(provider = null, onDone = onDone)
+    }
+
+    /** Offline draft first, then Gemini refines it. */
     fun generateWithAi(onDone: () -> Unit) {
         if (apiKey.isBlank()) {
             error = "Enter your Gemini API key before generating key points with AI."
             return
         }
 
-        generateInternal(useAi = true, onDone = onDone)
+        generateInternal(provider = AiProvider.GEMINI, onDone = onDone)
     }
 
-    private fun generateInternal(useAi: Boolean, onDone: () -> Unit) {
+    /** Offline draft first, then Groq refines it ("AI (2)" button). */
+    fun generateWithGroq(onDone: () -> Unit) {
+        if (groqApiKey.isBlank()) {
+            error = "Enter your Groq API key before generating key points with AI (2)."
+            return
+        }
+
+        generateInternal(provider = AiProvider.GROQ, onDone = onDone)
+    }
+
+    private fun generateInternal(provider: AiProvider?, onDone: () -> Unit) {
         val uri = pickedUri ?: run {
             error = "Select a document first."
             return
@@ -119,8 +147,8 @@ class StudyViewModel(app: Application) : AndroidViewModel(app) {
 
         if (loading) return
 
-        // Capture values before starting the coroutine.
-        val selectedApiKey = apiKey.trim()
+        val selectedGeminiKey = apiKey.trim()
+        val selectedGroqKey = groqApiKey.trim()
         val selectedDocumentName = pickedName
 
         viewModelScope.launch {
@@ -136,31 +164,57 @@ class StudyViewModel(app: Application) : AndroidViewModel(app) {
                     KeyPointGenerator.generate(documentText, selectedTopic)
                 }
 
-                val finalPoints = if (useAi) {
-                    withContext(Dispatchers.IO) {
-                        AiKeyPointGenerator.refine(
-                            apiKey = selectedApiKey,
-                            topic = selectedTopic,
-                            draftPoints = draftPoints
-                        )
+                var aiFailureMessage: String? = null
+
+                val finalPoints = if (provider != null) {
+                    try {
+                        when (provider) {
+                            AiProvider.GEMINI -> AiKeyPointGenerator.refineOnIo(
+                                apiKey = selectedGeminiKey,
+                                topic = selectedTopic,
+                                draftPoints = draftPoints
+                            )
+
+                            AiProvider.GROQ -> GroqKeyPointGenerator.refineOnIo(
+                                apiKey = selectedGroqKey,
+                                topic = selectedTopic,
+                                draftPoints = draftPoints
+                            )
+                        }
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        aiFailureMessage = e.message
+                            ?: "The AI service could not complete the request."
+
+                        // Use offline points if the AI service fails.
+                        draftPoints
                     }
                 } else {
                     draftPoints
                 }
 
                 if (finalPoints.isEmpty()) {
-                    error =
-                        "No useful content about \"$selectedTopic\" was found. " +
-                        "Try another topic or document."
+                    error = "No useful content about \"$selectedTopic\" was found. " +
+                            "Try another topic or document."
                 } else {
                     current = SummaryUi(
                         topic = selectedTopic,
                         documentName = selectedDocumentName,
                         points = finalPoints,
-                        generatedWithAi = useAi
+                        generatedWithAi = provider != null && aiFailureMessage == null
                     )
+
+                    // Tell the user when the offline fallback was used.
+                    error = aiFailureMessage?.let {
+                        "AI couldn't be used, so your offline key points are shown instead. $it"
+                    }
+
                     onDone()
                 }
+
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 error = e.message
                     ?: "Something went wrong while generating key points."
@@ -171,14 +225,18 @@ class StudyViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // Notes
+
     fun openNote(note: SavedNote) {
         current = SummaryUi(
             topic = note.topic,
             documentName = note.documentName,
-            points = note.points.split("\n").filter { it.isNotBlank() },
+            points = note.points.split("\n"),
             savedId = note.id,
-            revised = note.revised
+            revised = note.revised,
+            generatedWithAi = false
         )
+
+        error = null
     }
 
     fun saveCurrent() = viewModelScope.launch {

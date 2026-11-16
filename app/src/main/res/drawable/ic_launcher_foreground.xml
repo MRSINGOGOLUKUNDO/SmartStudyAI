@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- open book: left page -->
+    <path
+        android:fillColor="#F8FAFC"
+        android:pathData="M54,44 C48,40 40,39 33,41 L33,69 C40,67 48,68 54,72 Z" />
+    <!-- open book: right page -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M54,44 C60,40 68,39 75,41 L75,69 C68,67 60,68 54,72 Z" />
+    <!-- AI sparkle -->
+    <path
+        android:fillColor="#A78BFA"
+        android:pathData="M54,22 L56.5,29.5 L64,32 L56.5,34.5 L54,42 L51.5,34.5 L44,32 L51.5,29.5 Z" />
+</vector>

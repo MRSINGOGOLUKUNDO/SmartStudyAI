@@ -1,3 +1,4 @@
+
 @file:OptIn(ExperimentalMaterial3Api::class)
 
 package com.zut.smartstudy.ui
@@ -9,23 +10,26 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.zut.smartstudy.ui.components.ShineButton
+import com.zut.smartstudy.ui.components.StudyBackground
+import com.zut.smartstudy.ui.theme.SoftWhite
 
 private val MIME_TYPES = arrayOf(
     "application/pdf",
@@ -34,39 +38,98 @@ private val MIME_TYPES = arrayOf(
 )
 
 @Composable
-fun PickerScreen(vm: StudyViewModel, onBack: () -> Unit, onGenerated: () -> Unit) {
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+fun PickerScreen(
+    vm: StudyViewModel,
+    onBack: () -> Unit,
+    onGenerated: () -> Unit
+) {
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
         vm.onDocumentPicked(uri)
     }
-    val useAi = vm.generationMode == GenerationMode.AI
 
+    val isGemini = vm.generationMode == GenerationMode.AI
+    val isGroq = vm.generationMode == GenerationMode.GROQ
+    val isOffline = vm.generationMode == GenerationMode.OFFLINE
+
+    val title = when (vm.generationMode) {
+        GenerationMode.OFFLINE -> "Offline generation"
+        GenerationMode.AI -> "Generate with Gemini"
+        GenerationMode.GROQ -> "Generate with Groq"
+    }
+
+    val description = when (vm.generationMode) {
+        GenerationMode.OFFLINE ->
+            "Generate meaningful study key points directly on your device. No internet is required."
+
+        GenerationMode.AI ->
+            "Your document is processed offline first. Gemini then improves the clarity and organisation of the key points."
+
+        GenerationMode.GROQ ->
+            "Your document is processed offline first. Groq then improves the clarity and organisation of the key points."
+    }
+
+    val apiKeyReady = when (vm.generationMode) {
+        GenerationMode.OFFLINE -> true
+        GenerationMode.AI -> vm.apiKey.isNotBlank()
+        GenerationMode.GROQ -> vm.groqApiKey.isNotBlank()
+    }
+
+    StudyBackground {
     Scaffold(
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text(if (useAi) "Generate with AI" else "Document & topic") },
+                title = { Text(title) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Transparent,
+                    scrolledContainerColor = Color.Transparent,
+                    titleContentColor = SoftWhite,
+                    navigationIconContentColor = SoftWhite
+                ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
                     }
                 }
             )
         }
     ) { padding ->
+
         Column(
-            Modifier.padding(padding).padding(16.dp).fillMaxSize(),
+            modifier = Modifier
+                .padding(padding)
+                .padding(16.dp)
+                .fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+
             Text(
-                if (useAi) "AI generation starts with your document's extracted key points, then Gemini improves their clarity and removes repetition."
-                else "Generate key points on your device. This option works offline.",
+                description,
                 style = MaterialTheme.typography.bodyMedium
             )
 
-            OutlinedButton(onClick = { launcher.launch(MIME_TYPES) }, modifier = Modifier.fillMaxWidth()) {
-                Text(if (vm.pickedUri == null) "Select PDF / Word / text document" else "Change document")
-            }
+            ShineButton(
+                text = if (vm.pickedUri == null) {
+                    "Select PDF / Word / text document"
+                } else {
+                    "Change document"
+                },
+                onClick = { launcher.launch(MIME_TYPES) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !vm.loading,
+                outlined = true
+            )
+
             if (vm.pickedUri != null) {
-                Text("Selected: ${vm.pickedName}", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    "Selected: ${vm.pickedName}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
 
             OutlinedTextField(
@@ -74,39 +137,75 @@ fun PickerScreen(vm: StudyViewModel, onBack: () -> Unit, onGenerated: () -> Unit
                 onValueChange = { vm.topic = it },
                 label = { Text("Topic (e.g. software testing)") },
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !vm.loading
             )
 
-            if (useAi) {
+            if (isGemini) {
                 OutlinedTextField(
                     value = vm.apiKey,
                     onValueChange = { vm.apiKey = it },
                     label = { Text("Gemini API key") },
-                    placeholder = { Text("Paste your API key") },
+                    placeholder = { Text("Paste your Gemini API key") },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !vm.loading
                 )
+            }
+
+            if (isGroq) {
+                OutlinedTextField(
+                    value = vm.groqApiKey,
+                    onValueChange = { vm.groqApiKey = it },
+                    label = { Text("Groq API key") },
+                    placeholder = { Text("Paste your Groq API key") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !vm.loading
+                )
+            }
+
+            if (isGemini || isGroq) {
                 Text(
-                    "Your key is kept in memory for this app session and is not saved in the notes database. For a public release, use a secure backend rather than embedding a personal API key in the app.",
+                    "AI services require an internet connection. If AI fails, " +
+                            "the app will use the offline-generated points instead.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
-            Button(
-                onClick = {
-                    if (useAi) vm.generateWithAi(onGenerated) else vm.generate(onGenerated)
+            ShineButton(
+                text = when {
+                    isOffline -> "Generate key points"
+                    isGemini -> "Generate key points using Gemini"
+                    isGroq -> "Generate key points using Groq"
+                    else -> "Generate key points"
                 },
-                enabled = vm.pickedUri != null && vm.topic.isNotBlank() &&
-                    (!useAi || vm.apiKey.isNotBlank()) && !vm.loading,
+                onClick = {
+                    vm.generateForSelectedMode(onGenerated)
+                },
+                enabled = vm.pickedUri != null &&
+                        vm.topic.isNotBlank() &&
+                        apiKeyReady &&
+                        !vm.loading,
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(if (useAi) "Generate key points using AI" else "Generate key points")
+            )
+
+            if (vm.loading) {
+                CircularProgressIndicator()
+                Text("Processing your document. Please wait.")
             }
 
-            if (vm.loading) CircularProgressIndicator()
-            vm.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            vm.error?.let { message ->
+                Text(
+                    text = message,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
         }
+    }
     }
 }
